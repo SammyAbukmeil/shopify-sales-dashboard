@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:init": "tsx --env-file-if-exists=.env.local scripts/init-db.ts"
+    "db:init": "tsx --env-file-if-exists=.env.local scripts/init-db.ts",
+    "seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
