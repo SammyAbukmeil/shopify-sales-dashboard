@@ -1,6 +1,6 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { upsertOrders, type OrderRow } from "@/lib/db/upserts";
+import { verifyWebhookSignature } from "@/lib/shopify/webhook";
 
 interface WebhookOrderPayload {
   id: number;
@@ -19,13 +19,6 @@ interface WebhookOrderPayload {
   }[];
 }
 
-function verifyHmac(rawBody: string, header: string, secret: string): boolean {
-  const digest = createHmac("sha256", secret).update(rawBody, "utf8").digest("base64");
-  const a = Buffer.from(digest);
-  const b = Buffer.from(header);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function toUtcIso(timestamp: string): string {
   return new Date(timestamp).toISOString().replace(".000Z", "Z");
 }
@@ -38,7 +31,7 @@ export async function POST(req: Request) {
 
   const rawBody = await req.text();
   const hmacHeader = req.headers.get("x-shopify-hmac-sha256") ?? "";
-  if (!verifyHmac(rawBody, hmacHeader, secret)) {
+  if (!verifyWebhookSignature(rawBody, hmacHeader, secret)) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
