@@ -68,7 +68,7 @@ export default async function Dashboard() {
         </div>
       </section>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-hairline bg-surface p-6">
           <h2 className="text-sm font-medium text-ink-secondary">Top products by revenue</h2>
           <div className="mt-4">
