@@ -12,6 +12,21 @@ Built against a Shopify development store with seeded sample data. It can point 
 
 Shopify stays the source of truth. The app keeps a local, query-optimized copy of just the fields the dashboard needs, and computes all stats with SQL at read time.
 
+```mermaid
+flowchart LR
+  Shopify[Shopify store]
+  Sync["Sync endpoints<br>/api/sync/*"]
+  Hook["Webhook receiver<br>/api/webhooks/orders-create"]
+  DB[("SQLite<br>(Turso in prod)")]
+  Dash["Dashboard<br>(React Server Component)"]
+
+  Shopify -- "Admin GraphQL API (backfill)" --> Sync
+  Shopify -- "orders/create webhook (real time)" --> Hook
+  Sync -- upsert --> DB
+  Hook -- upsert --> DB
+  DB -- "SQL at read time" --> Dash
+```
+
 1. **Backfill:** the sync endpoints (`/api/sync/orders`, `/api/sync/products`) page through the Admin GraphQL API and upsert everything into the database.
 2. **Real time:** Shopify calls `/api/webhooks/orders-create` for each new order. The receiver verifies the webhook signature against the raw request body, then upserts the order through the same code path as the sync.
 3. **Dashboard:** a React Server Component queries the database directly on each request.
