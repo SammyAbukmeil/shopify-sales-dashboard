@@ -4,6 +4,8 @@ A sales analytics dashboard for a Shopify store. It syncs orders and products th
 
 **Live demo:** https://shopify-sales-dashboard-alpha.vercel.app
 
+![The dashboard: revenue, orders and average order value KPIs, a revenue over time chart, top products by revenue, and orders by country](docs/dashboard.png)
+
 Built against a Shopify development store with seeded sample data. It can point at any store by changing environment variables.
 
 ## How it works
