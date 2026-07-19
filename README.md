@@ -8,9 +8,28 @@ A sales analytics dashboard for a Shopify store. It syncs orders and products th
 
 Built against a Shopify development store with seeded sample data. It can point at any store by changing environment variables.
 
+## 日本語の概要
+
+Shopifyストアの売上分析ダッシュボードです。Shopify Admin GraphQL APIで注文と商品データを同期し、Webhookで新規注文をほぼリアルタイムに受信します。売上推移、売上上位の商品、平均注文額、国別注文数などのKPIを表示します。開発ストアのサンプルデータで構築していますが、環境変数を変更するだけで任意のストアに接続できます。
+
 ## How it works
 
 Shopify stays the source of truth. The app keeps a local, query-optimized copy of just the fields the dashboard needs, and computes all stats with SQL at read time.
+
+```mermaid
+flowchart LR
+  Shopify[Shopify store]
+  Sync["Sync endpoints<br>/api/sync/*"]
+  Hook["Webhook receiver<br>/api/webhooks/orders-create"]
+  DB[("SQLite<br>(Turso in prod)")]
+  Dash["Dashboard<br>(React Server Component)"]
+
+  Shopify -- "Admin GraphQL API (backfill)" --> Sync
+  Shopify -- "orders/create webhook (real time)" --> Hook
+  Sync -- upsert --> DB
+  Hook -- upsert --> DB
+  DB -- "SQL at read time" --> Dash
+```
 
 1. **Backfill:** the sync endpoints (`/api/sync/orders`, `/api/sync/products`) page through the Admin GraphQL API and upsert everything into the database.
 2. **Real time:** Shopify calls `/api/webhooks/orders-create` for each new order. The receiver verifies the webhook signature against the raw request body, then upserts the order through the same code path as the sync.
