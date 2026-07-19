@@ -1,65 +1,113 @@
-import Image from "next/image";
+import {
+  getKpis,
+  getOrdersByCountry,
+  getRevenueByDay,
+  getTopProducts,
+  type RevenuePoint,
+} from "@/lib/db/queries";
+import { formatCompactCurrency, formatCurrency, formatInteger } from "@/lib/format";
+import { StatCard } from "./components/StatCard";
+import { RevenueChart } from "./components/RevenueChart";
+import { TopProductsList } from "./components/TopProductsList";
+import { CountryChart, type CountryDatum } from "./components/CountryChart";
 
-export default function Home() {
+// Opt out of static rendering to reflect webhook writes on every request
+export const dynamic = "force-dynamic";
+
+const REPORTING_PERIOD_DAYS = 180;
+
+// Lots of orders results in a daily series with lots of spikes/noise, so bucket into weeks
+function toWeeklySeries(points: RevenuePoint[], days: number): RevenuePoint[] {
+  const weekStart = (d: Date): string => {
+    const monday = new Date(d);
+    monday.setUTCDate(monday.getUTCDate() - ((monday.getUTCDay() + 6) % 7));
+    return monday.toISOString().slice(0, 10);
+  };
+
+  const byWeek = new Map<string, RevenuePoint>();
+  const cursor = new Date();
+  cursor.setUTCDate(cursor.getUTCDate() - days + 1);
+  for (let i = 0; i < days; i += 7) {
+    const week = weekStart(cursor);
+    byWeek.set(week, { day: week, revenue: 0, orders: 0 });
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+
+  for (const p of points) {
+    const bucket = byWeek.get(weekStart(new Date(`${p.day}T00:00:00Z`)));
+    if (!bucket) continue;
+    bucket.revenue = Math.round((bucket.revenue + p.revenue) * 100) / 100;
+    bucket.orders += p.orders;
+  }
+  return [...byWeek.values()];
+}
+
+function firstDayOfEachMonth(points: RevenuePoint[]): string[] {
+  const seen = new Set<string>();
+  const ticks: string[] = [];
+  for (const p of points) {
+    const month = p.day.slice(0, 7);
+    if (!seen.has(month)) {
+      seen.add(month);
+      ticks.push(p.day);
+    }
+  }
+  return ticks;
+}
+
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+
+export default async function Dashboard() {
+  const [kpis, revenueByDay, topProducts, ordersByCountry] = await Promise.all([
+    getKpis(REPORTING_PERIOD_DAYS),
+    getRevenueByDay(REPORTING_PERIOD_DAYS),
+    getTopProducts(REPORTING_PERIOD_DAYS, 8),
+    getOrdersByCountry(REPORTING_PERIOD_DAYS),
+  ]);
+
+  const series = toWeeklySeries(revenueByDay, REPORTING_PERIOD_DAYS);
+  const monthTicks = firstDayOfEachMonth(series);
+  const countries: CountryDatum[] = ordersByCountry.slice(0, 8).map((c) => ({
+    country: c.countryCode ? (countryNames.of(c.countryCode) ?? c.countryCode) : "Unknown",
+    orders: c.orders,
+    revenue: c.revenue,
+  }));
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+      <header className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Sales dashboard</h1>
+        <p className="text-sm text-ink-secondary">Last {REPORTING_PERIOD_DAYS} days</p>
+      </header>
+
+      <section className="mt-6 grid gap-4 sm:grid-cols-3">
+        <StatCard label="Total revenue" value={formatCompactCurrency(kpis.totalRevenue)} />
+        <StatCard label="Orders" value={formatInteger(kpis.orderCount)} />
+        <StatCard label="Average order value" value={formatCurrency(kpis.averageOrderValue)} />
+      </section>
+
+      <section className="mt-4 rounded-xl border border-hairline bg-surface p-6">
+        <h2 className="text-sm font-medium text-ink-secondary">Revenue over time</h2>
+        <div className="mt-4">
+          <RevenueChart data={series} monthTicks={monthTicks} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </section>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-hairline bg-surface p-6">
+          <h2 className="text-sm font-medium text-ink-secondary">Top products by revenue</h2>
+          <div className="mt-4">
+            <TopProductsList products={topProducts} />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-hairline bg-surface p-6">
+          <h2 className="text-sm font-medium text-ink-secondary">Orders by country</h2>
+          <div className="mt-4">
+            <CountryChart data={countries} />
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }
