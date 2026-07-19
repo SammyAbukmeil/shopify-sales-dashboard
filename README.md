@@ -8,6 +8,10 @@ A sales analytics dashboard for a Shopify store. It syncs orders and products th
 
 Built against a Shopify development store with seeded sample data. It can point at any store by changing environment variables.
 
+## 日本語の概要
+
+Shopifyストアの売上分析ダッシュボードです。Shopify Admin GraphQL APIで注文と商品データを同期し、Webhookで新規注文をほぼリアルタイムに受信します。売上推移、売上上位の商品、平均注文額、国別注文数などのKPIを表示します。開発ストアのサンプルデータで構築していますが、環境変数を変更するだけで任意のストアに接続できます。
+
 ## How it works
 
 Shopify stays the source of truth. The app keeps a local, query-optimized copy of just the fields the dashboard needs, and computes all stats with SQL at read time.
